@@ -56,6 +56,10 @@ async function post(path: string, body: unknown, token?: string, headers?: Recor
   return { ok: res.ok, status: res.status, data };
 }
 
+/** Server refusals carry a human-readable `message` on 4xx — surface it instead of discarding it. */
+const srvMsg = (d: any): string =>
+  typeof d?.message === "string" && d.message.trim() ? ` — ${d.message.trim()}` : "";
+
 /* ---------------- meter ---------------- */
 
 type Meter = { text: string; kind: "ok" | "auth" | "error" };
@@ -155,11 +159,11 @@ async function deviceFlow(status: (s: string) => void, isCancelled: () => boolea
   status(base0);
   const start = await post("/auth/github/device", {});
   if (start.status >= 500) throw new Error("free-pi is unreachable right now — try again later");
-  if (!start.ok || !start.data?.session_id) throw new Error(`could not start sign-in (HTTP ${start.status})`);
+  if (!start.ok || !start.data?.session_id) throw new Error(`could not start sign-in (HTTP ${start.status})${srvMsg(start.data)}`);
   const { session_id, user_code, verification_uri, interval = 5, expires_in = 899 } = start.data;
 
   const consent = await post("/auth/consent", { session_id, consent_version: CONSENT_VERSION });
-  if (!consent.ok) throw new Error(`consent failed (HTTP ${consent.status})`);
+  if (!consent.ok) throw new Error(`consent failed (HTTP ${consent.status})${srvMsg(consent.data)}`);
 
   const base = `Open: ${verification_uri ?? "https://github.com/login/device"}\ncode: ${user_code}\nwaiting for approval…`;
   status(base);
@@ -184,7 +188,7 @@ async function deviceFlow(status: (s: string) => void, isCancelled: () => boolea
     if (res.status === 403 && res.data?.code === "denied") throw new Error("sign-in denied — approve the request in the browser, or start over");
     if (res.status === 410 || res.data?.code === "expired") throw new Error("code expired — run /freepi-login again");
     if (res.status >= 500) { status(base + "\nfree-pi hiccup — still waiting…"); continue; }
-    throw new Error(`sign-in failed (HTTP ${res.status})`);
+    throw new Error(`sign-in failed (HTTP ${res.status})${srvMsg(res.data)}`);
   }
   throw new Error("timed out — run /freepi-login again");
 }

@@ -1,18 +1,12 @@
 {
   "name": "opencode-freepi",
   "version": "0.5.0",
-  "description": "free-pi (freepi.ai) for OpenCode: credits meter, device-flow login, model catalog sync, ad-pull parity",
+  "description": "free-pi (freepi.ai) for OpenCode: credits meter, device-flow login, model catalog sync, ad parity",
   "license": "MIT",
   "type": "module",
-  "private": false,
+  "private": true,
   "main": "./index.js",
   "tui": "./tui.tsx",
-  "keywords": ["opencode", "opencode-plugin", "freepi", "free-pi", "credits"],
-  "files": ["index.js", "tui.tsx", "README.md", "LICENSE"],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ritobhash/opencode-freepi.git"
-  },
   "engines": {
     "opencode": ">=2.2.0"
   }

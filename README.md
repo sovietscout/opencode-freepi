@@ -1,54 +1,43 @@
 # opencode-freepi
 
-[free-pi](https://freepi.ai) for [OpenCode](https://opencode.ai) — a single self-contained
+[free-pi](https://freepi.ai) for [OpenCode](https://opencode.ai) — a self-contained
 plugin that replaces the free-pi CLI. No global binary, no manual config editing.
 
 ## What it does
 
-| Feature | Details |
-|---|---|
-| **Credits meter** | Footer slot (only while a free-pi model is selected) showing your daily allowance + bonus + premium pools, e.g. `free-pi 15,000+2,651`. Theme-colored: muted gray normally, warning orange when a sign-in is required, error red when offline or the daily allowance is nearly spent. Updates after every turn and every 60 s. |
-| **`/freepi-login`** | GitHub device-flow sign-in with a consent step (ads + training disclosure). Stores the token in OpenCode's credential store (applies live, no restart) and mirrors it to `~/.free-pi/agent/credentials.json`. |
-| **Model catalog sync** | Fetches free-pi's model catalog at startup and after every sign-in and writes it into `opencode.json` under `providers.freepi` — models are plugin-maintained, never manual. |
-| **Ad parity** | Pulls banner/inline ads and reports impressions on the same cadence as the free-pi CLI (launch + every user turn, inline every 5th turn end, 60 s banner throttle, launch dedupe) — without rendering anything, so the server counts you as a supported client. |
+- **Credits meter** — footer slot (only while a `freepi/*` model is selected) showing
+  daily allowance + bonus + premium, e.g. `free-pi 15,000+2,651`. Colors: muted normally,
+  warning orange when sign-in is required, red when offline or nearly spent.
+- **`/freepi-login`** — GitHub device-flow sign-in with a consent step. Stores the token in
+  OpenCode's credential store (live, no restart) and mirrors it to `~/.free-pi/agent/credentials.json`.
+- **Model catalog sync** — writes free-pi's model catalog into `opencode.json` under
+  `providers.freepi` at startup and after every sign-in.
+- **Ad parity** — pulls banner/inline ads and reports impressions on the free-pi CLI cadence
+  without rendering anything.
 
 ## Install
 
-**From npm** (once published):
-
 ```sh
-opencode plugin add opencode-freepi
+opencode plugin add github:sovietscout/opencode-freepi
 ```
 
-**From GitHub:**
-
-```sh
-opencode plugin add github:ritobhash/opencode-freepi
-```
-
-**Manual:** clone or copy this directory anywhere and add it to your OpenCode config:
+Or point at a local copy:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": [
-    "/path/to/opencode-freepi"
-  ]
+  "plugins": ["/path/to/opencode-freepi"]
 }
 ```
 
-Then run `/freepi-login` inside OpenCode once. Done.
+Then run `/freepi-login` once. Requires OpenCode ≥ 2.2.0 and a free-pi account.
 
-## Notes & troubleshooting
+## Notes
 
-- **You sign in once.** The token lives in OpenCode's credential database and survives
-  restarts; the plugin auto-restores it if you migrate from the free-pi CLI.
-- **Model changes need a restart.** OpenCode's background service daemon reads the config
-  once at startup and never reloads it. After a catalog update the plugin tells you:
-  *"opencode needs a restart to pick up model changes (not a sign-in issue)"*.
-- Defense models are listed with their usage multipliers, e.g.
-  `Abliterated Large Flash (defense) (~20x usage)`.
-- The meter only renders while a `freepi/*` model is selected.
+- You sign in once; the token survives restarts and is auto-restored if migrating from the CLI.
+- Model changes need a restart — OpenCode's daemon reads config once at startup. The plugin
+  tells you when that's the cause ("needs a restart… not a sign-in issue").
+- Defense models show their usage multiplier, e.g. `Abliterated Large Flash (defense) (~20x usage)`.
 
 ## Environment knobs
 
@@ -59,11 +48,6 @@ Then run `/freepi-login` inside OpenCode once. Done.
 | `FREEPI_AD_CLIENT_VERSION` | `0.6.22` | `x-client-version` sent to the ad API |
 | `FREEPI_CREDS` | `~/.free-pi/agent/credentials.json` | Token mirror path |
 | `FREEPI_METER_DEBUG` | unset | Set to `1` to log to `/tmp/freepi-plugin.log` |
-
-## Requirements
-
-- OpenCode ≥ 2.2.0 (developed and tested on 2.2.7)
-- A free-pi account (sign in via `/freepi-login`)
 
 ## License
 
