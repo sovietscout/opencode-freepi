@@ -14,7 +14,8 @@ Run `/freepi-login` to authenticate, then restart OpenCode to load the free-pi m
 ## Notes
 
 - Advertisements are requested and impressions reported on free-pi's standard cadence.
-  They are never displayed.
+  A background keeper re-reports every few minutes (and before every free-pi request)
+  so free completions stay unpaused. They are never displayed.
 
 ## License
 

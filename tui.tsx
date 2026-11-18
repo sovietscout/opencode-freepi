@@ -24,9 +24,12 @@ const BASE = "https://api.freepi.ai";
 const PROVIDER = "freepi";
 const CONSENT_VERSION = "4";
 const POLL_MS = Number(process.env.FREEPI_METER_POLL_MS ?? 60_000);
-const AD_CLIENT_VERSION = process.env.FREEPI_AD_CLIENT_VERSION ?? "0.6.22";
+const AD_CLIENT_VERSION = process.env.FREEPI_AD_CLIENT_VERSION ?? "0.6.23";
 const BANNER_MIN_REFRESH_MS = 60_000;
-const LAUNCH_AD_MAX_AGE_MS = 60 * 60_000;
+// The server only keeps free completions open for minutes after an impression,
+// not an hour — the old 60-min window let a stale launch ad skip the first
+// user turn's pull and trip 403 ads_required.
+const LAUNCH_AD_MAX_AGE_MS = 5 * 60_000;
 const INLINE_TURN_FREQUENCY = Number(process.env.FREEPI_AD_INLINE_TURN_FREQUENCY ?? 5);
 
 function log(msg: string) {
@@ -303,6 +306,17 @@ function isGravityImpUrl(raw: any): boolean {
   } catch { return false; }
 }
 
+/** Same shape as the CLI's localeHeaders(): timezone + locale from Intl. */
+function localeHeaders(): Record<string, string> {
+  try {
+    const { timeZone, locale } = Intl.DateTimeFormat().resolvedOptions();
+    return {
+      ...(timeZone ? { "x-client-timezone": timeZone } : {}),
+      ...(locale ? { "x-client-locale": locale } : {}),
+    };
+  } catch { return {}; }
+}
+
 async function fetchAd(slot: string, trigger?: string): Promise<any> {
   const tok = readToken();
   if (!tok) return;
@@ -312,6 +326,7 @@ async function fetchAd(slot: string, trigger?: string): Promise<any> {
     "x-client-version": AD_CLIENT_VERSION,
     "x-client-os": process.platform,
     "x-client-arch": arch(),
+    ...localeHeaders(),
   };
   if (currentTurnId) headers["x-turn-id"] = currentTurnId;
   if (trigger) headers["x-ad-trigger"] = trigger;
@@ -323,17 +338,19 @@ async function fetchAd(slot: string, trigger?: string): Promise<any> {
 
 async function reportImpression(ad: any, slot: "banner" | "inline"): Promise<void> {
   if (!ad?.ad_id || !ad?.click_token) return;
-  const last = slot === "inline" ? lastInlineClickToken : lastBannerClickToken;
-  if (last === ad.click_token) return;
+  const tokenChanged = (slot === "inline" ? lastInlineClickToken : lastBannerClickToken) !== ad.click_token;
   if (slot === "inline") lastInlineClickToken = ad.click_token;
   else lastBannerClickToken = ad.click_token;
-  log(`impression: ad=${ad.ad_id} slot=${slot} source=${ad.source ?? "?"} token_changed=yes`);
+  log(`impression: ad=${ad.ad_id} slot=${slot} source=${ad.source ?? "?"} token_changed=${tokenChanged ? "yes" : "no"}`);
   let impFired = false;
   if (ad.source === "gravity" && isGravityImpUrl(ad.imp_url)) {
     try { fetch(ad.imp_url, { method: "GET" }).catch(() => {}); impFired = true; } catch {}
   }
   try {
-    await post("/ads/impression", { ad_id: ad.ad_id, click_token: ad.click_token, ...(impFired ? { imp_fired: true } : {}) }, readToken());
+    // report every time (no click_token dedupe): the server treats a fresh
+    // impression POST as what keeps free completions open, and it reuses the
+    // same token for up to an hour — deduping could leave the account paused.
+    await post("/ads/impression", { ad_id: ad.ad_id, click_token: ad.click_token, ...(impFired ? { imp_fired: true } : {}) }, readToken(), { "x-session-id": adSessionId });
   } catch (e: any) { log("impression POST failed: " + (e?.message ?? e)); }
 }
 
@@ -539,6 +556,17 @@ export default {
             if (now2 - lastAuthToast >= 30_000) {
               lastAuthToast = now2;
               api.ui.toast.show({ message: "free-pi: opencode needs a restart to pick up model changes (not a sign-in issue)", variant: "warning", duration: 10000 });
+            }
+            return;
+          }
+          // 403 ads_required: the account needs a fresh ad impression — the
+          // server half re-reports and retries automatically; don't misreport
+          // this as a sign-in problem.
+          if (/ads/i.test(msg) && (status === 403 || !status)) {
+            const now3 = Date.now();
+            if (now3 - lastAuthToast >= 30_000) {
+              lastAuthToast = now3;
+              api.ui.toast.show({ message: "free-pi: ads not credited yet — reported a fresh ad, retry in a moment (if it persists: npx free-pi-cli@latest)", variant: "warning", duration: 10000 });
             }
             return;
           }
