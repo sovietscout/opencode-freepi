@@ -1,6 +1,6 @@
 {
   "name": "opencode-freepi",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "free-pi (freepi.ai) for OpenCode: credits meter, device-flow login, model catalog sync, ad parity",
   "license": "MIT",
   "type": "module",
@@ -9,5 +9,9 @@
   "tui": "./tui.tsx",
   "engines": {
     "opencode": ">=2.2.0"
+  },
+  "dependencies": {
+    "@opentui/solid": "^0.4.5",
+    "solid-js": "^1.9.12"
   }
 }
